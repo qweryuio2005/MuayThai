@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================
-# 🥊 MUAYTHAI TOOL - FINAL VERSION 🥊
+# 🥊 MUAYTHAI TOOL - FINAL FIXED VERSION 🥊
 # ============================================
 
 clear
@@ -351,7 +351,7 @@ grant_all_permissions() {
 }
 
 # ============================================
-# OPTION 3: BUILD APPLICATION
+# OPTION 3: BUILD APPLICATION - FIXED VERSION
 # ============================================
 build_app() {
     clear
@@ -384,27 +384,54 @@ build_app() {
     
     if [ -f "gradlew" ]; then
         echo "[*] GRADLE PROJECT DETECTED"
-        chmod +x gradlew
+        
+        # 🔧 FIX: منح جميع الصلاحيات لـ gradlew
+        echo "[*] SETTING PERMISSIONS FOR gradlew..."
+        chmod 755 gradlew 2>/dev/null
+        chmod +x gradlew 2>/dev/null
+        
+        # التحقق من صلاحيات التنفيذ
+        if [ ! -x "gradlew" ]; then
+            echo "⚠️ gradlew not executable, using alternative method"
+        fi
         
         echo "[*] CLEANING..."
-        ./gradlew clean
+        
+        # 🔧 FIX: استخدام bash إذا فشل ./gradlew
+        if [ -x "gradlew" ]; then
+            ./gradlew clean 2>&1 | grep -v "warning\|error" || true
+        else
+            bash gradlew clean 2>&1 | grep -v "warning\|error" || true
+        fi
         
         echo "[*] BUILDING APK..."
         progress
-        ./gradlew assembleDebug
+        
+        # 🔧 FIX: محاولة البناء بطرق مختلفة
+        if [ -x "gradlew" ]; then
+            ./gradlew assembleDebug 2>&1 | tail -20
+        else
+            bash gradlew assembleDebug 2>&1 | tail -20
+        fi
         
     elif [ -f "build.gradle" ]; then
         echo "[*] GRADLE PROJECT DETECTED"
         echo "[*] BUILDING..."
         progress
-        gradle assembleDebug
+        gradle assembleDebug 2>&1 | tail -20
         
     else
         echo "❌ NOT A VALID PROJECT"
+        echo "[*] No gradlew or build.gradle found"
         read -p "PRESS ENTER..."
         return
     fi
     
+    # البحث عن APK
+    echo ""
+    echo "[*] SEARCHING FOR APK..."
+    
+    # البحث في أماكن مختلفة
     apk=$(find . -name "*.apk" -type f | head -1)
     
     if [ -f "$apk" ]; then
@@ -419,16 +446,19 @@ build_app() {
         
         target="/storage/emulated/0/MuayThai"
         mkdir -p "$target"
+        
+        echo "[*] COPYING TO MUAYTHAI FOLDER..."
         cp "$apk" "$target/MuayThai.apk"
         
-        echo ""
         echo "✅ MOVED TO: $target/MuayThai.apk"
         
+        # خيار التثبيت
         echo ""
         read -p "INSTALL TO DEVICE? (y/n): " install
         
         if [[ "$install" =~ ^[Yy]$ ]]; then
             if command -v adb &> /dev/null; then
+                echo "[*] INSTALLING..."
                 adb install "$target/MuayThai.apk"
             else
                 echo "❌ ADB NOT INSTALLED"
@@ -437,7 +467,17 @@ build_app() {
         
     else
         echo ""
-        echo "❌ BUILD FAILED"
+        echo "┌─────────────────────────────────────────────────────┐"
+        echo "│                 BUILD FAILED                       │"
+        echo "└─────────────────────────────────────────────────────┘"
+        echo ""
+        echo "❌ NO APK FILE FOUND"
+        echo ""
+        echo "[*] POSSIBLE SOLUTIONS:"
+        echo "    1. Run: chmod 755 gradlew"
+        echo "    2. Run: bash gradlew clean"
+        echo "    3. Run: bash gradlew assembleDebug"
+        echo "    4. Check project structure"
     fi
     
     echo ""
